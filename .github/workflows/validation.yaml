@@ -1,0 +1,51 @@
+name: Validation
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+permissions:
+  contents: read
+
+jobs:
+  check-frontend:
+    name: "Run validation for the Next.js app"
+    defaults:
+      run:
+        working-directory: apps/web
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/setup@v2
+        with:
+          cache: true
+          install: false
+          package-json-file: apps/web/package.json
+          cache-dependency-path: apps/web/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm format:check
+      - run: pnpm test:run
+
+  check-backend:
+    name: "Run validation for the Spring Boot app"
+    defaults:
+      run:
+        working-directory: apps/backend
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: graalvm/setup-graalvm@v1
+        with:
+          distribution: graalvm-community
+          java-version: "25"
+          cache: maven
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - run: ./mvnw -B -ntp test
