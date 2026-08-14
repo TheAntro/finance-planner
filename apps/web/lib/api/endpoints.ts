@@ -3,6 +3,7 @@ import type {
   CreateItemRequest,
   ItemResponse,
   StatementResponse,
+  CreateStatementRequest,
 } from "./types"
 
 function mergeInit(
@@ -25,6 +26,11 @@ export function createApi(baseUrl: () => string, defaultInit?: RequestInit) {
   return {
     listStatements: () =>
       fetchJson<StatementResponse[]>(`${baseUrl()}/statements`, defaultInit),
+    createStatement: (body: CreateStatementRequest) =>
+      fetchJson<StatementResponse>(
+        `${baseUrl()}/statements`,
+        jsonInit("POST", body),
+      ),
     listItems: () =>
       fetchJson<ItemResponse[]>(`${baseUrl()}/items`, defaultInit),
     createItem: (body: CreateItemRequest) =>

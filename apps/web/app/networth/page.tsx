@@ -19,11 +19,8 @@ export default async function NetworthPage(props: PageProps<"/networth">) {
   await prefetch[active](qc)
 
   return (
-    <div className="p-4">
-      <h1 className="text-2xl font-bold">Networth</h1>
-      <HydrationBoundary state={dehydrate(qc)}>
-        <NetworthTabs />
-      </HydrationBoundary>
-    </div>
+    <HydrationBoundary state={dehydrate(qc)}>
+      <NetworthTabs />
+    </HydrationBoundary>
   )
 }

@@ -2,7 +2,8 @@
 
 import { describeError, statementsQuery } from "@/lib/api"
 import { browserApi } from "@/lib/api/browser"
-import { formatCents, formatIsoDate } from "@/lib/format"
+import { formatIsoDate } from "@/lib/format"
+import { formatCents } from "@/lib/money"
 import { useQuery } from "@tanstack/react-query"
 import {
   Table,
@@ -14,6 +15,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
+import { CreateStatementDialog } from "./create-statement-dialog"
 
 const COLUMNS = 4
 
@@ -24,6 +26,7 @@ export function StatementsDashboard() {
 
   return (
     <div>
+      <CreateStatementDialog />
       <Table>
         <TableCaption>A list of your networth statements</TableCaption>
         <TableHeader>
