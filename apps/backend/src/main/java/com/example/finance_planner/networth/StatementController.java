@@ -12,33 +12,36 @@ import java.net.URI;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.util.UriComponentsBuilder;
+import com.example.finance_planner.identity.CurrentUser;
 
 @RestController
 @RequestMapping("/api/v1/statements")
 class StatementController {
 
   private final StatementService statementService;
+  private final CurrentUser currentUser;
 
-  StatementController(StatementService statementService) {
+  StatementController(StatementService statementService, CurrentUser currentUser) {
     this.statementService = statementService;
+    this.currentUser = currentUser;
   }
 
   @GetMapping
   List<StatementResponse> getStatements() {
-    return this.statementService.getAll();
+    return this.statementService.getAll(currentUser.id());
   }
 
   @PostMapping
   ResponseEntity<StatementResponse> createStatement(
       @RequestBody @Valid CreateStatementRequest statementRequest,
       UriComponentsBuilder uriBuilder) {
-    StatementResponse statementResponse = this.statementService.create(statementRequest);
+    StatementResponse statementResponse = this.statementService.create(statementRequest, currentUser.id());
     URI location = uriBuilder.path("/api/v1/statements/{id}").buildAndExpand(statementResponse.id()).toUri();
     return ResponseEntity.created(location).body(statementResponse);
   }
 
   @GetMapping("/{id}")
   StatementResponse getStatement(@PathVariable UUID id) {
-    return this.statementService.get(id);
+    return this.statementService.get(id, currentUser.id());
   }
 }

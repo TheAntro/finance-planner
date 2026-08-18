@@ -11,12 +11,15 @@ import com.example.finance_planner.TestcontainersConfiguration;
 
 import java.util.UUID;
 import tools.jackson.databind.ObjectMapper;
-
+import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.transaction.annotation.Transactional;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.assertj.MockMvcTester;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
+import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.JwtRequestPostProcessor;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -24,96 +27,125 @@ import static org.assertj.core.api.Assertions.assertThat;
 @Transactional
 class StatementApiTests {
 
-  @Autowired
-  private MockMvcTester mvc;
+    @Autowired
+    private MockMvcTester mvc;
 
-  @Autowired
-  private ObjectMapper objectMapper;
+    @Autowired
+    private ObjectMapper objectMapper;
 
-  @Test
-  void createThenGetReturnsSameTotals() {
-    UUID assetId = createItem("Savings", ItemType.ASSET);
-    UUID liabilityId = createItem("Credit Cards", ItemType.LIABILITY);
+    @MockitoBean
+    private JwtDecoder jwtDecoder;
 
-    var create = mvc.post().uri("/api/v1/statements")
-        .contentType(MediaType.APPLICATION_JSON)
-        .content(objectMapper.writeValueAsString(new CreateStatementRequest(
-            LocalDate.now(),
-            List.of(
-                new CreateStatementRequest.Line(assetId, 100L),
-                new CreateStatementRequest.Line(liabilityId, 500L)))))
-        .exchange();
+    private static JwtRequestPostProcessor userJwt(String subject) {
+        return jwt().jwt(builder -> builder
+                .issuer("https://test.issuer.com")
+                .subject(subject));
+    }
 
-    assertThat(create)
-        .hasStatus(HttpStatus.CREATED)
-        .bodyJson()
-        .extractingPath("$.totalAssetsCents")
-        .asNumber()
-        .satisfies(n -> assertThat(n.longValue()).isEqualTo(100L));
-    assertThat(create)
-        .bodyJson()
-        .extractingPath("$.totalLiabilitiesCents")
-        .asNumber()
-        .satisfies(n -> assertThat(n.longValue()).isEqualTo(500L));
+    @Test
+    void blocksRequestsWithoutJwt() {
+        assertThat(mvc.post()
+                .uri("/api/v1/statements"))
+                .hasStatus(HttpStatus.UNAUTHORIZED);
+    }
 
-    String location = create.getResponse().getHeader("Location");
-    assertThat(location).isNotBlank();
+    @Test
+    void createThenGetReturnsSameTotals() {
+        UUID assetId = createItem("Savings", ItemType.ASSET, "user-a");
+        UUID liabilityId = createItem("Credit Cards", ItemType.LIABILITY, "user-a");
 
-    var get = mvc.get().uri(location).exchange();
+        var create = mvc.post().uri("/api/v1/statements")
+                .with(userJwt("user-a"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(new CreateStatementRequest(
+                        LocalDate.now(),
+                        List.of(
+                                new CreateStatementRequest.Line(assetId, 100L),
+                                new CreateStatementRequest.Line(liabilityId, 500L)))))
+                .exchange();
 
-    assertThat(get)
-        .hasStatus(HttpStatus.OK)
-        .bodyJson()
-        .extractingPath("$.totalAssetsCents")
-        .asNumber()
-        .satisfies(n -> assertThat(n.longValue()).isEqualTo(100L));
-    assertThat(get)
-        .bodyJson()
-        .extractingPath("$.totalLiabilitiesCents")
-        .asNumber()
-        .satisfies(n -> assertThat(n.longValue()).isEqualTo(500L));
-  }
+        assertThat(create)
+                .hasStatus(HttpStatus.CREATED)
+                .bodyJson()
+                .extractingPath("$.totalAssetsCents")
+                .asNumber()
+                .satisfies(n -> assertThat(n.longValue()).isEqualTo(100L));
+        assertThat(create)
+                .bodyJson()
+                .extractingPath("$.totalLiabilitiesCents")
+                .asNumber()
+                .satisfies(n -> assertThat(n.longValue()).isEqualTo(500L));
 
-  @Test
-  void createRejectsDuplicateStatementDate() {
-    UUID assetId = createItem("Savings", ItemType.ASSET);
-    var body = objectMapper.writeValueAsString(new CreateStatementRequest(LocalDate.of(2026, 1, 1), List.of(
-        new CreateStatementRequest.Line(assetId, 100L))));
+        String location = create.getResponse().getHeader("Location");
+        assertThat(location).isNotBlank();
 
-    assertThat(mvc.post().uri("/api/v1/statements")
-        .contentType(MediaType.APPLICATION_JSON)
-        .content(body))
-        .hasStatus(HttpStatus.CREATED);
+        var get = mvc.get().uri(location).with(userJwt("user-a")).exchange();
 
-    assertThat(mvc.post().uri("/api/v1/statements")
-        .contentType(MediaType.APPLICATION_JSON)
-        .content(body))
-        .hasStatus(HttpStatus.CONFLICT);
-  }
+        assertThat(get)
+                .hasStatus(HttpStatus.OK)
+                .bodyJson()
+                .extractingPath("$.totalAssetsCents")
+                .asNumber()
+                .satisfies(n -> assertThat(n.longValue()).isEqualTo(100L));
+        assertThat(get)
+                .bodyJson()
+                .extractingPath("$.totalLiabilitiesCents")
+                .asNumber()
+                .satisfies(n -> assertThat(n.longValue()).isEqualTo(500L));
+    }
 
-  @Test
-  void createRejectsUnknownItemIds() {
-    UUID unknownId = UUID.randomUUID();
+    @Test
+    void createRejectsDuplicateStatementDate() {
+        UUID assetId = createItem("Savings", ItemType.ASSET, "user-a");
+        var body = objectMapper.writeValueAsString(new CreateStatementRequest(LocalDate.of(2026, 1, 1), List.of(
+                new CreateStatementRequest.Line(assetId, 100L))));
 
-    assertThat(mvc.post().uri("/api/v1/statements")
-        .contentType(MediaType.APPLICATION_JSON)
-        .content(objectMapper.writeValueAsString(new CreateStatementRequest(LocalDate.of(2026, 1, 1), List.of(
-            new CreateStatementRequest.Line(unknownId, 100L))))))
-        .hasStatus(HttpStatus.UNPROCESSABLE_CONTENT)
-        .hasContentType(MediaType.APPLICATION_PROBLEM_JSON)
-        .bodyJson()
-        .extractingPath("$.itemIds").asArray().containsExactly(unknownId.toString());
-  }
+        assertThat(mvc.post().uri("/api/v1/statements")
+                .with(userJwt("user-a"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body))
+                .hasStatus(HttpStatus.CREATED);
 
-  private UUID createItem(String name, ItemType type) {
-    var result = mvc.post().uri("/api/v1/items")
-        .contentType(MediaType.APPLICATION_JSON)
-        .content(objectMapper.writeValueAsString(new CreateItemRequest(name, type)))
-        .exchange();
+        assertThat(mvc.post().uri("/api/v1/statements")
+                .with(userJwt("user-a"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body))
+                .hasStatus(HttpStatus.CONFLICT);
+    }
 
-    assertThat(result).hasStatus(HttpStatus.CREATED);
-    return UUID.fromString(
-        result.getResponse().getHeader("Location").replaceAll(".*/", ""));
-  }
+    @Test
+    void createRejectsUnknownItemIds() {
+        UUID unknownId = UUID.randomUUID();
+
+        assertThat(mvc.post().uri("/api/v1/statements")
+                .with(userJwt("user-a"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(new CreateStatementRequest(LocalDate.of(2026, 1, 1), List.of(
+                        new CreateStatementRequest.Line(unknownId, 100L))))))
+                .hasStatus(HttpStatus.UNPROCESSABLE_CONTENT)
+                .hasContentType(MediaType.APPLICATION_PROBLEM_JSON)
+                .bodyJson()
+                .extractingPath("$.itemIds").asArray().containsExactly(unknownId.toString());
+    }
+
+    @Test
+    void doesNotExposeStatementsToAnotherUser() {
+        createItem("Savings", ItemType.ASSET, "user-a");
+        assertThat(mvc.get().uri("/api/v1/statements").with(userJwt("user-b")))
+                .hasStatusOk()
+                .bodyJson().extractingPath("$").asArray().isEmpty();
+    }
+
+    private UUID createItem(String name, ItemType type, String subject) {
+        var result = mvc.post().uri("/api/v1/items")
+                .with(userJwt(subject))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(new CreateItemRequest(name, type)))
+                .exchange();
+
+        assertThat(result).hasStatus(HttpStatus.CREATED);
+        return UUID.fromString(
+                result.getResponse().getHeader("Location").replaceAll(".*/", ""));
+    }
 
 }

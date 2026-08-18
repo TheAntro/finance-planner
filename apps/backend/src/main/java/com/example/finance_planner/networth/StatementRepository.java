@@ -2,14 +2,18 @@ package com.example.finance_planner.networth;
 
 import java.time.LocalDate;
 import java.util.UUID;
-import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.Repository;
 
 import java.util.List;
 import java.util.Optional;
 
-interface StatementRepository extends JpaRepository<Statement, UUID> {
-  boolean existsByStatementDate(LocalDate statementDate);
+interface StatementRepository extends Repository<Statement, UUID> {
+  boolean existsByStatementDateAndUserId(LocalDate statementDate, UUID userId);
+
+  List<Statement> findAllByUserIdOrderByStatementDateDesc(UUID userId);
+
+  Statement save(Statement statement);
 
   @Query("""
       select new com.example.finance_planner.networth.StatementResponse(
@@ -20,10 +24,10 @@ interface StatementRepository extends JpaRepository<Statement, UUID> {
       from Statement s
         left join StatementItem si on si.statement = s
         left join si.item i
-      where s.id = :id
+      where s.id = :id and s.userId = :userId
       group by s.id, s.statementDate
       """)
-  Optional<StatementResponse> findWithTotalsById(UUID id);
+  Optional<StatementResponse> findWithTotalsByIdAndUserId(UUID id, UUID userId);
 
   @Query("""
       select new com.example.finance_planner.networth.StatementResponse(
@@ -34,8 +38,9 @@ interface StatementRepository extends JpaRepository<Statement, UUID> {
       from Statement s
         left join StatementItem si on si.statement = s
         left join si.item i
+      where s.userId = :userId
       group by s.id, s.statementDate
       order by s.statementDate desc
       """)
-  List<StatementResponse> findAllWithTotals();
+  List<StatementResponse> findAllWithTotalsByUserId(UUID userId);
 }

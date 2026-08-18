@@ -12,33 +12,36 @@ import jakarta.validation.Valid;
 import java.net.URI;
 import java.util.UUID;
 import org.springframework.web.bind.annotation.PathVariable;
+import com.example.finance_planner.identity.CurrentUser;
 
 @RestController
 @RequestMapping("/api/v1/items")
 class ItemController {
 
   private final ItemService itemService;
+  private final CurrentUser currentUser;
 
-  ItemController(ItemService itemService) {
+  ItemController(ItemService itemService, CurrentUser currentUser) {
     this.itemService = itemService;
+    this.currentUser = currentUser;
   }
 
   @GetMapping
   List<ItemResponse> getItems() {
-    return itemService.getAll();
+    return itemService.getAll(currentUser.id());
   }
 
   @PostMapping
   ResponseEntity<ItemResponse> createItem(
       @Valid @RequestBody CreateItemRequest request,
       UriComponentsBuilder uriBuilder) {
-    ItemResponse itemResponse = itemService.create(request);
+    ItemResponse itemResponse = itemService.create(request, currentUser.id());
     URI location = uriBuilder.path("/api/v1/items/{id}").buildAndExpand(itemResponse.id()).toUri();
     return ResponseEntity.created(location).body(itemResponse);
   }
 
   @GetMapping("/{id}")
   ItemResponse getItem(@PathVariable UUID id) {
-    return itemService.get(id);
+    return itemService.get(id, currentUser.id());
   }
 }

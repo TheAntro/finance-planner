@@ -22,7 +22,7 @@ class Item {
   @GeneratedValue(strategy = GenerationType.UUID)
   private UUID id;
 
-  // Has a case-insensitive unique constraint on the database level
+  // Has a case-insensitive unique constraint per user on the database level
   @Column(nullable = false, length = NAME_MAX_LENGTH)
   private String name;
 
@@ -33,12 +33,16 @@ class Item {
   @Column(name = "is_active", nullable = false)
   private boolean active;
 
+  @Column(nullable = false, updatable = false)
+  private UUID userId;
+
   protected Item() {
   }
 
-  Item(String name, ItemType type) {
+  Item(String name, ItemType type, UUID userId) {
     this.name = name;
     this.type = type;
+    this.userId = userId;
     this.active = true;
   }
 
