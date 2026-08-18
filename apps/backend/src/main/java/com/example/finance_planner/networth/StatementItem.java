@@ -29,7 +29,7 @@ class StatementItem {
   @JoinColumn(name = "item_id", nullable = false)
   private Item item;
 
-  @Column(name = "amount_cents", nullable = false)
+  @Column(nullable = false)
   private long amountCents;
 
   protected StatementItem() {

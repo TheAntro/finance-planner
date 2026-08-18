@@ -24,27 +24,28 @@ class StatementService {
   }
 
   @Transactional(readOnly = true)
-  StatementResponse get(UUID id) {
-    return this.statements.findWithTotalsById(id).orElseThrow(() -> new StatementNotFoundException(id));
+  StatementResponse get(UUID id, UUID userId) {
+    return this.statements.findWithTotalsByIdAndUserId(id, userId)
+        .orElseThrow(() -> new StatementNotFoundException(id));
   }
 
   @Transactional(readOnly = true)
-  List<StatementResponse> getAll() {
-    return this.statements.findAllWithTotals();
+  List<StatementResponse> getAll(UUID userId) {
+    return this.statements.findAllWithTotalsByUserId(userId);
   }
 
   @Transactional
-  StatementResponse create(CreateStatementRequest statementRequest) {
+  StatementResponse create(CreateStatementRequest statementRequest, UUID userId) {
     // Fast path check for a duplicate date.
     // Real guarantee for the unique statement date is in a database constraint.
-    if (this.statements.existsByStatementDate(statementRequest.statementDate())) {
+    if (this.statements.existsByStatementDateAndUserId(statementRequest.statementDate(), userId)) {
       throw new DuplicateStatementDateException(statementRequest.statementDate());
     }
 
     var lines = statementRequest.statementItems();
     var lineItemIds = lines.stream().map(Line::itemId).toList();
 
-    Map<UUID, Item> itemMap = items.findAllById(lineItemIds).stream()
+    Map<UUID, Item> itemMap = items.findAllByIdInAndUserId(lineItemIds, userId).stream()
         .collect(toMap(Item::getId, Function.identity()));
 
     if (itemMap.size() != lineItemIds.size()) {
@@ -57,7 +58,8 @@ class StatementService {
             line -> itemMap.get(line.itemId()).getType(),
             summingLong(Line::amountCents)));
 
-    Statement statement = statements.save(new Statement(statementRequest.statementDate()));
+    Statement statement = statements.save(
+        new Statement(statementRequest.statementDate(), userId));
     statementItems.saveAll(lines.stream()
         .map(line -> new StatementItem(statement, itemMap.get(line.itemId()), line.amountCents()))
         .toList());

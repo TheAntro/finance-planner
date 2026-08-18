@@ -11,11 +11,12 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.http.ProblemDetail;
 import org.springframework.validation.FieldError;
 import org.springframework.context.support.DefaultMessageSourceResolvable;
+import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.dao.DataIntegrityViolationException;
 import static java.util.stream.Collectors.groupingBy;
 import static java.util.stream.Collectors.mapping;
 import static java.util.stream.Collectors.toList;
-import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.web.bind.annotation.ExceptionHandler;
+import java.sql.SQLException;
 
 @RestControllerAdvice
 class ApiExceptionsHandler extends ResponseEntityExceptionHandler {
@@ -38,11 +39,22 @@ class ApiExceptionsHandler extends ResponseEntityExceptionHandler {
   ResponseEntity<Object> handleDataIntegrityViolation(
       DataIntegrityViolationException ex, WebRequest request) {
 
-    logger.warn("Database constraint violated", ex);
+    if (isUniqueViolation(ex)) {
+      logger.warn("Unique constraint violated", ex);
+      ProblemDetail body = ProblemDetail.forStatusAndDetail(
+          HttpStatus.CONFLICT,
+          "The request conflicts with existing data");
+      return handleExceptionInternal(ex, body, new HttpHeaders(), HttpStatus.CONFLICT, request);
+    }
 
-    ProblemDetail body = ProblemDetail.forStatusAndDetail(
-        HttpStatus.CONFLICT,
-        "The request conflicts with existing data");
-    return handleExceptionInternal(ex, body, new HttpHeaders(), HttpStatus.CONFLICT, request);
+    logger.error("Unexpected data integrity violation", ex);
+    ProblemDetail body = ProblemDetail.forStatusAndDetail(HttpStatus.INTERNAL_SERVER_ERROR,
+        "An unexpected error occurred");
+    return handleExceptionInternal(ex, body, new HttpHeaders(), HttpStatus.INTERNAL_SERVER_ERROR, request);
+
+  }
+
+  private boolean isUniqueViolation(DataIntegrityViolationException ex) {
+    return ex.getMostSpecificCause() instanceof SQLException sql && "23505".equals(sql.getSQLState());
   }
 }

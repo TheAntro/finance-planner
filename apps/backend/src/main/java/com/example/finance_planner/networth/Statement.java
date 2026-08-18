@@ -16,14 +16,19 @@ class Statement {
   @GeneratedValue(strategy = GenerationType.UUID)
   private UUID id;
 
-  @Column(name = "statement_date", nullable = false, unique = true)
+  // There is a unique constraint for statement date per user in the database.
+  @Column(nullable = false)
   private LocalDate statementDate;
+
+  @Column(nullable = false, updatable = false)
+  private UUID userId;
 
   protected Statement() {
   }
 
-  Statement(LocalDate statementDate) {
+  Statement(LocalDate statementDate, UUID userId) {
     this.statementDate = statementDate;
+    this.userId = userId;
   }
 
   UUID getId() {

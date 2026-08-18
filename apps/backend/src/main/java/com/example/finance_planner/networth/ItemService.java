@@ -4,7 +4,6 @@ import java.util.List;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.data.domain.Sort;
 
 @Service
 class ItemService {
@@ -16,28 +15,31 @@ class ItemService {
   }
 
   @Transactional(readOnly = true)
-  ItemResponse get(UUID id) {
-    return itemRepository.findById(id)
+  ItemResponse get(UUID id, UUID userId) {
+    return itemRepository.findByIdAndUserId(id, userId)
         .map(this::toResponse)
         .orElseThrow(() -> new ItemNotFoundException(id));
   }
 
   @Transactional(readOnly = true)
-  List<ItemResponse> getAll() {
+  List<ItemResponse> getAll(UUID userId) {
     return itemRepository
-        .findAll(Sort.by("name"))
+        .findAllByUserIdOrderByName(userId)
         .stream()
         .map(this::toResponse)
         .toList();
   }
 
   @Transactional
-  ItemResponse create(CreateItemRequest request) {
-    if (itemRepository.existsByNameIgnoreCase(request.name())) {
+  ItemResponse create(CreateItemRequest request, UUID userId) {
+    if (itemRepository.existsByNameIgnoreCaseAndUserId(request.name(), userId)) {
       throw new DuplicateItemNameException(request.name());
     }
 
-    Item item = itemRepository.save(new Item(request.name(), request.type()));
+    Item item = itemRepository.save(
+        new Item(request.name(),
+            request.type(),
+            userId));
     return toResponse(item);
   }
 

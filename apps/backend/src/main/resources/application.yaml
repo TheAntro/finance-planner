@@ -9,3 +9,11 @@ spring:
     hibernate:
       ddl-auto: validate
     open-in-view: false
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: https://idp.antro.dev/oidc
+          audiences:
+            - https://api.money.antro.dev
+          

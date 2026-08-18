@@ -5,6 +5,9 @@ import { stubFetch } from "@/test/utils"
 
 const context = (...path: string[]) => ({ params: Promise.resolve({ path }) })
 const upstreamRequest = () => vi.mocked(fetch).mock.calls[0][0] as Request
+vi.mock("@/lib/auth/tokens", () => ({
+  getApiToken: () => Promise.resolve("test-token"),
+}))
 
 describe("backend-for-frontend proxy", () => {
   it("should forward method, path and query string to the backend", async () => {
