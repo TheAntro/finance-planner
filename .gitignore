@@ -1,5 +1,6 @@
 target/
 .env*
+!.env.example
 
 .vscode/
 .DS_Store
