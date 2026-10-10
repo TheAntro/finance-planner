@@ -1,6 +1,9 @@
 import type { NextRequest } from "next/server"
 import { backendOrigin } from "@/lib/api/server"
 import { getApiToken } from "@/lib/auth/tokens"
+import { isSessionExpiredError } from "@/lib/auth/errors"
+
+const SESSION_EXPIRED_CODE = "session_expired"
 
 async function bffProxy(
   request: NextRequest,
@@ -14,6 +17,7 @@ async function bffProxy(
   try {
     token = await getApiToken()
   } catch (error) {
+    const sessionExpired = isSessionExpiredError(error)
     console.error(
       `[bffProxy] no access token for ${request.method} ${target.pathname}`,
       error,
@@ -24,6 +28,7 @@ async function bffProxy(
         title: "Unauthorized",
         status: 401,
         detail: "Your session has expired. Please sign in again.",
+        ...(sessionExpired ? { code: SESSION_EXPIRED_CODE } : {}),
       },
       { status: 401, headers: { "content-type": "application/problem+json" } },
     )

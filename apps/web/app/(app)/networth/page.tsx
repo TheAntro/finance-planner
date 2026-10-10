@@ -7,6 +7,7 @@ import { serverApi } from "@/lib/api/server"
 import { getLogtoContext } from "@logto/next/server-actions"
 import { logtoConfig } from "@/lib/auth/logto-config"
 import { SignInPrompt } from "@/components/sign-in-prompt"
+import { requireApiToken } from "@/lib/auth/require-session"
 
 export const metadata: Metadata = {
   title: "Networth",
@@ -16,6 +17,7 @@ export default async function NetworthPage(props: PageProps<"/networth">) {
   const { isAuthenticated } = await getLogtoContext(logtoConfig())
   if (!isAuthenticated) return <SignInPrompt />
 
+  await requireApiToken()
   const api = await serverApi()
   const prefetch = createTabPrefetch(api)
   const { tab } = await props.searchParams

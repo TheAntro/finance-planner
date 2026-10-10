@@ -16,6 +16,7 @@ export type ProblemDetail = {
   title?: string
   status?: number
   detail?: string
+  code?: string
   instance?: string
   errors?: Record<string, string[]>
   itemIds?: string[]

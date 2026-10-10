@@ -1,15 +1,22 @@
 import { NextRequest } from "next/server"
-import { describe, it, vi, expect } from "vitest"
+import { beforeEach, describe, it, vi, expect } from "vitest"
 import { GET, POST } from "./route"
 import { stubFetch } from "@/test/utils"
 
+const { getApiToken } = vi.hoisted(() => ({ getApiToken: vi.fn() }))
+
 const context = (...path: string[]) => ({ params: Promise.resolve({ path }) })
 const upstreamRequest = () => vi.mocked(fetch).mock.calls[0][0] as Request
-vi.mock("@/lib/auth/tokens", () => ({
-  getApiToken: () => Promise.resolve("test-token"),
+vi.mock("@/lib/auth/tokens", () => ({ getApiToken }))
+vi.mock("@/lib/api/server", () => ({
+  backendOrigin: () => "http://backend.test",
 }))
 
 describe("backend-for-frontend proxy", () => {
+  beforeEach(() => {
+    getApiToken.mockResolvedValue("test-token")
+  })
+
   it("should forward method, path and query string to the backend", async () => {
     stubFetch(Response.json([]))
 
@@ -82,5 +89,45 @@ describe("backend-for-frontend proxy", () => {
     )
     await expect(response.json()).resolves.toMatchObject({ status: 502 })
     expect(consoleError).toHaveBeenCalled()
+  })
+
+  it("marks expired sessions for client-side reauthentication", async () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {})
+    const upstreamFetch = vi.fn()
+    vi.stubGlobal("fetch", upstreamFetch)
+    getApiToken.mockRejectedValue({ code: "oidc.invalid_grant" })
+
+    const response = await GET(
+      new NextRequest("http://localhost:3000/api/v1/statements"),
+      context("v1", "statements"),
+    )
+
+    expect(response.status).toBe(401)
+    expect(response.headers.get("content-type")).toBe(
+      "application/problem+json",
+    )
+    await expect(response.json()).resolves.toMatchObject({
+      status: 401,
+      code: "session_expired",
+    })
+    expect(consoleError).toHaveBeenCalled()
+    expect(upstreamFetch).not.toHaveBeenCalled()
+  })
+
+  it("keeps unrelated token failures as ordinary unauthorized responses", async () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {})
+    const upstreamFetch = vi.fn()
+    vi.stubGlobal("fetch", upstreamFetch)
+    getApiToken.mockRejectedValue(new Error("token service unavailable"))
+
+    const response = await GET(
+      new NextRequest("http://localhost:3000/api/v1/statements"),
+      context("v1", "statements"),
+    )
+
+    expect(response.status).toBe(401)
+    await expect(response.json()).resolves.not.toHaveProperty("code")
+    expect(consoleError).toHaveBeenCalled()
+    expect(upstreamFetch).not.toHaveBeenCalled()
   })
 })
